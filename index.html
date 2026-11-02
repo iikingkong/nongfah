@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="น้องฟ้า">
+<meta name="theme-color" content="#070B10">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}</style>
+<title>น้องฟ้า AI</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Sans+Thai:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one-screen HUD app — status bar, orb, scrolling briefing feed, docked composer; settings slide up as a sheet */
+:root{
+  --void:#070B10; --panel:#0D151D; --panel-2:#111C26; --line:#1D2C38;
+  --ice:#7FE3F0; --amber:#F2B45A; --text:#DCE7EE; --dim:#7F93A1;
+  --ok:#7BE0A6; --bad:#FF8A7A;
+  --f-display:"Chakra Petch","IBM Plex Sans Thai",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans Thai",system-ui,-apple-system,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--void);color:var(--text);font:15px/1.6 var(--f-body);-webkit-font-smoothing:antialiased;overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--ice);outline-offset:2px}
+
+.app{height:100%;display:flex;flex-direction:column;max-width:760px;margin:0 auto}
+.pad{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+header.top{display:flex;align-items:center;gap:12px;padding-block:12px 8px}
+.brand{flex:1;min-width:0}
+.brand h1{margin:0;font:600 22px/1.15 var(--f-display);letter-spacing:.02em}
+.brand p{margin:2px 0 0;color:var(--dim);font-size:12px}
+.icon-btn{display:inline-grid;place-items:center;width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--text)}
+.icon-btn svg{width:20px;height:20px}
+.icon-btn:active{transform:scale(.96)}
+
+.deck{display:flex;align-items:center;gap:16px;padding-block:6px 12px;border-bottom:1px solid var(--line)}
+.orb{--c:var(--ice);width:92px;height:92px;flex:none;position:relative}
+.orb > *{position:absolute;border-radius:50%}
+.orb .ticks{inset:0;background:repeating-conic-gradient(var(--c) 0 1.2deg,transparent 1.2deg 7.5deg);
+  -webkit-mask:radial-gradient(circle,transparent 62%,#000 63%,#000 70%,transparent 71%);mask:radial-gradient(circle,transparent 62%,#000 63%,#000 70%,transparent 71%);opacity:.55}
+.orb .arc{inset:9px;background:conic-gradient(from 0deg,var(--c) 0 70deg,transparent 70deg 180deg,var(--c) 180deg 215deg,transparent 215deg);
+  -webkit-mask:radial-gradient(circle,transparent 66%,#000 67%,#000 72%,transparent 73%);mask:radial-gradient(circle,transparent 66%,#000 67%,#000 72%,transparent 73%);animation:spin 9s linear infinite}
+.orb .core{inset:28px;background:radial-gradient(circle at 50% 45%,#fff 0,var(--c) 22%,color-mix(in srgb,var(--c) 30%,transparent) 55%,transparent 72%);opacity:.85;transition:transform .3s}
+.orb[data-state="listening"] .core{animation:pulse 1.1s ease-in-out infinite}
+.orb[data-state="thinking"]{--c:var(--amber)}
+.orb[data-state="thinking"] .arc{animation-duration:1.4s}
+.orb[data-state="speaking"] .core{animation:pulse .55s ease-in-out infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{50%{transform:scale(1.18)}}
+.readout{flex:1;min-width:0;display:grid;gap:8px}
+.state{font:500 15px/1.3 var(--f-display);letter-spacing:.03em}
+.state small{display:block;font:400 11px/1.4 var(--f-mono);color:var(--dim);letter-spacing:.06em;text-transform:uppercase}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel);font-size:12px;color:var(--dim)}
+.chip[aria-pressed="true"]{border-color:var(--ice);color:var(--ice)}
+.chip .led{width:7px;height:7px;border-radius:50%;background:currentColor}
+
+main.feed{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-block:14px 20px;display:flex;flex-direction:column;gap:22px}
+.turn{display:grid;gap:10px}
+.tag{justify-self:start;font:500 10px/1 var(--f-mono);letter-spacing:.12em;color:var(--amber);border:1px solid color-mix(in srgb,var(--amber) 45%,transparent);padding:4px 7px;border-radius:6px}
+.q{margin:0;justify-self:end;max-width:85%;background:var(--panel-2);border:1px solid var(--line);padding:9px 13px;border-radius:14px 14px 4px 14px;overflow-wrap:anywhere}
+.team{display:grid;gap:6px}
+.ch{border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.ch summary{list-style:none;display:flex;align-items:center;gap:8px;padding:8px 10px;font-size:13px;cursor:pointer}
+.ch summary::-webkit-details-marker{display:none}
+.ch .dot{width:8px;height:8px;border-radius:50%;background:var(--dim);flex:none}
+.ch .who{font:500 12px/1 var(--f-mono);letter-spacing:.06em;color:var(--dim);flex:none}
+.ch .model{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ch .pill{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--dim);flex:none}
+.ch[data-st="wait"] .dot{background:var(--amber);animation:blink 1s infinite}
+.ch[data-st="wait"] .pill{color:var(--amber)}
+.ch[data-st="ok"] .dot{background:var(--ok)}
+.ch[data-st="ok"] .pill{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+.ch[data-st="err"] .dot{background:var(--bad)}
+.ch[data-st="err"] .pill{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+.ch[data-st="off"]{opacity:.6}
+@keyframes blink{50%{opacity:.25}}
+.report{padding:0 12px 12px;font-size:13.5px;color:#C3D2DC;border-top:1px dashed var(--line);padding-top:10px;max-height:320px;overflow-y:auto;overflow-wrap:anywhere}
+.answer{border:1px solid color-mix(in srgb,var(--ice) 35%,var(--line));border-radius:14px;background:linear-gradient(180deg,color-mix(in srgb,var(--ice) 7%,var(--panel)),var(--panel));padding:12px 14px 14px}
+.ans-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.ans-who{flex:1;min-width:0;font:600 13px/1.3 var(--f-display);color:var(--ice);letter-spacing:.04em}
+.conf{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
+.conf[data-l="สูง"]{color:var(--ok)} .conf[data-l="กลาง"]{color:var(--amber)} .conf[data-l="ต่ำ"]{color:var(--bad)}
+.ans-head .icon-btn{width:32px;height:32px;border-radius:9px}
+.ans-head .icon-btn svg{width:16px;height:16px}
+.ans-body{overflow-wrap:anywhere}
+.ans-body.pending{color:var(--dim);font-size:14px}
+.ans-body p{margin:0 0 .6em}.ans-body p:last-child{margin:0}
+.ans-body ul{margin:.2em 0 .6em;padding-left:1.2em}
+.ans-body a,.report a{color:var(--ice)}
+.report p{margin:0 0 .5em}.report ul{margin:.2em 0 .5em;padding-left:1.1em}
+
+footer.dock{border-top:1px solid var(--line);background:var(--void);padding-block:10px 12px}
+.attach-row{display:flex;gap:6px;margin-bottom:8px}
+.composer{display:flex;align-items:flex-end;gap:8px}
+.composer textarea{flex:1;min-width:0;resize:none;max-height:120px;min-height:44px;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--panel);font-size:16px;line-height:1.4}
+.composer textarea::placeholder{color:var(--dim)}
+.mic{width:52px;height:52px;border-radius:50%;border:1px solid var(--ice);background:color-mix(in srgb,var(--ice) 14%,var(--panel));color:var(--ice)}
+.mic svg{width:24px;height:24px}
+.mic.on{background:var(--ice);color:var(--void)}
+.send{color:var(--ice)}
+
+/* settings sheet */
+.scrim{position:fixed;inset:0;background:rgba(2,5,8,.6);z-index:20}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:92%;z-index:21;background:var(--panel);border-top:1px solid var(--line);border-radius:18px 18px 0 0;display:flex;flex-direction:column;max-width:760px;margin:0 auto}
+.sheet-head{display:flex;align-items:center;gap:10px;padding-block:14px 10px;border-bottom:1px solid var(--line)}
+.sheet-head h2{flex:1;margin:0;font:600 18px/1.2 var(--f-display)}
+.sheet-body{overflow-y:auto;padding-block:8px calc(20px + env(safe-area-inset-bottom,0px));display:grid;gap:18px}
+fieldset{border:0;margin:0;padding:0;display:grid;gap:10px}
+legend{font:500 11px/1 var(--f-mono);letter-spacing:.12em;color:var(--amber);text-transform:uppercase;margin-bottom:10px;padding:0}
+.hint{margin:0;color:var(--dim);font-size:12.5px;max-width:62ch}
+label.f{display:grid;gap:4px;font-size:13px;color:var(--dim)}
+label.f input,label.f select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--void);font-size:16px;color:var(--text)}
+.slot{border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:8px;background:var(--panel-2)}
+.slot h3{margin:0;font:500 13px/1.2 var(--f-display);letter-spacing:.04em}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.row2 > *{min-width:0}
+.check{display:flex;align-items:center;gap:8px;font-size:13.5px}
+.check input{width:18px;height:18px;accent-color:var(--ice)}
+.btn{padding:11px 16px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2);font-weight:500}
+.btn.primary{background:var(--ice);color:var(--void);border-color:var(--ice)}
+.btn.danger{color:var(--bad)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));z-index:30;background:var(--panel-2);border:1px solid var(--line);padding:10px 14px;border-radius:12px;font-size:13.5px;max-width:min(92vw,520px)}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media (max-width:420px){.row2{grid-template-columns:1fr}.orb{width:76px;height:76px}.orb .core{inset:23px}}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="top pad">
+    <div class="brand">
+      <h1 id="brandName">น้องฟ้า</h1>
+      <p>ผู้ค้นข้อมูล 3 ตัว · ผู้วิเคราะห์ 1 ตัว</p>
+    </div>
+    <button class="icon-btn" id="openSettings" aria-label="ตั้งค่า">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </header>
+
+  <section class="deck pad">
+    <div class="orb" id="orb" data-state="idle" aria-hidden="true"><div class="ticks"></div><div class="arc"></div><div class="core"></div></div>
+    <div class="readout">
+      <div class="state" id="stateText"><small id="stateCode">STANDBY</small><span id="stateLabel">พร้อมรับคำสั่ง</span></div>
+      <div class="chips">
+        <button class="chip" id="wakeBtn" aria-pressed="false"><span class="led"></span><span id="wakeLabel">ฟังชื่อ: ปิด</span></button>
+        <span class="chip" id="keyChip"><span class="led"></span><span id="keyLabel">โหมดตัวอย่าง</span></span>
+      </div>
+    </div>
+  </section>
+
+  <main class="feed pad" id="feed" aria-live="polite"></main>
+
+  <footer class="dock pad">
+    <div class="attach-row" id="attachRow" hidden>
+      <span class="chip" style="color:var(--text)"><span id="attachName"></span><button class="icon-btn" id="attachClear" style="width:22px;height:22px;border:0;background:none" aria-label="เอาไฟล์ออก">✕</button></span>
+    </div>
+    <form class="composer" id="composer">
+      <label class="icon-btn" for="fileIn" aria-label="แนบไฟล์ข้อความ" style="height:44px;width:44px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>
+      </label>
+      <input type="file" id="fileIn" accept=".txt,.md,.csv,.json,.html,.xml,text/*" hidden>
+      <textarea id="input" rows="1" placeholder="พิมพ์ หรือกดไมค์แล้วพูด"></textarea>
+      <button type="submit" class="icon-btn send" aria-label="ส่ง" style="height:44px;width:44px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+      </button>
+      <button type="button" class="icon-btn mic" id="micBtn" aria-label="กดแล้วพูด">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+      </button>
+    </form>
+  </footer>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
+  <div class="sheet-head pad">
+    <h2 id="sheetTitle">ตั้งค่า</h2>
+    <button class="icon-btn" id="closeSettings" aria-label="ปิด">✕</button>
+  </div>
+  <div class="sheet-body pad">
+    <fieldset>
+      <legend>ผู้ช่วย</legend>
+      <label class="f">ชื่อเรียก (ใช้ปลุกด้วยเสียง)<input id="s_name" autocomplete="off"></label>
+      <label class="check"><input type="checkbox" id="s_voice"> พูดตอบออกเสียง</label>
+      <label class="f">ความเร็วเสียงพูด<select id="s_rate"><option value="0.9">ช้า</option><option value="1">ปกติ</option><option value="1.15">เร็ว</option></select></label>
+      <label class="check"><input type="checkbox" id="s_loc"> ส่งตำแหน่งโดยประมาณไปด้วย (เช่น ถามอากาศ ร้านแถวนี้)</label>
+    </fieldset>
+
+    <fieldset>
+      <legend>คีย์ API</legend>
+      <p class="hint">ใส่เฉพาะเจ้าที่มี ไม่ครบก็ใช้ได้ ช่องที่ไม่มีคีย์จะถูกข้ามไป คีย์เก็บอยู่ในเบราว์เซอร์ของเครื่องนี้เท่านั้น และส่งตรงไปที่ผู้ให้บริการ AI แต่ละเจ้า</p>
+      <label class="f">Claude (Anthropic) · console.anthropic.com<input id="k_anthropic" type="password" autocomplete="off" placeholder="sk-ant-…"></label>
+      <label class="f">ChatGPT (OpenAI) · platform.openai.com<input id="k_openai" type="password" autocomplete="off" placeholder="sk-…"></label>
+      <label class="f">Gemini (Google) · aistudio.google.com<input id="k_gemini" type="password" autocomplete="off" placeholder="AIza…"></label>
+      <div class="row2">
+        <label class="f">เจ้าอื่น: ที่อยู่ API<input id="k_customBase" autocomplete="off" placeholder="https://openrouter.ai/api/v1"></label>
+        <label class="f">เจ้าอื่น: คีย์<input id="k_custom" type="password" autocomplete="off"></label>
+      </div>
+    </fieldset>
+
+    <fieldset id="slotsBox">
+      <legend>ทีม AI</legend>
+      <p class="hint">ผู้ค้น 3 ตัวหาข้อมูลพร้อมกัน แล้วผู้วิเคราะห์เทียบรายงาน เลือกข้อมูลที่น่าเชื่อที่สุด และสรุปเป็นคำตอบเดียว ชื่อรุ่นแก้ได้ถ้าผู้ให้บริการเปลี่ยนรุ่นใหม่</p>
+    </fieldset>
+
+    <div class="actions">
+      <button class="btn primary" id="saveSettings">บันทึก</button>
+      <button class="btn danger" id="clearHist">ล้างบทสนทนา</button>
+    </div>
+  </div>
+</section>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<datalist id="dl_anthropic"><option value="claude-haiku-5-5"><option value="claude-sonnet-5-5"><option value="claude-opus-5-5"></datalist>
+<datalist id="dl_openai"><option value="gpt-5-mini"><option value="gpt-5"></datalist>
+<datalist id="dl_gemini"><option value="gemini-2.5-flash"><option value="gemini-2.5-pro"></datalist>
+<datalist id="dl_custom"><option value="meta-llama/llama-3.3-70b-instruct"><option value="deepseek/deepseek-chat"></datalist>
+
+<script>
+(function(){
+const LS='nongfah.settings.v1';
+const PROV={anthropic:'Claude',openai:'ChatGPT',gemini:'Gemini',custom:'เจ้าอื่น'};
+const DEF={name:'น้องฟ้า',voice:true,rate:'1',useLocation:false,
+  keys:{anthropic:'',openai:'',gemini:'',custom:'',customBase:'https://openrouter.ai/api/v1'},
+  slots:[{provider:'anthropic',model:'claude-haiku-5-5',web:true},{provider:'openai',model:'gpt-5-mini',web:true},{provider:'gemini',model:'gemini-2.5-flash',web:true}],
+  chief:{provider:'anthropic',model:'claude-sonnet-5-5'}};
+const clone=o=>JSON.parse(JSON.stringify(o));
+let S=clone(DEF);
+try{const raw=localStorage.getItem(LS);if(raw){const v=JSON.parse(raw);S=Object.assign(clone(DEF),v);S.keys=Object.assign(clone(DEF.keys),v.keys||{});S.slots=(Array.isArray(v.slots)&&v.slots.length===3)?v.slots:clone(DEF.slots);S.chief=Object.assign(clone(DEF.chief),v.chief||{});}}catch(e){}
+function persist(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}}
+
+const $=id=>document.getElementById(id);
+const feed=$('feed'),input=$('input'),orb=$('orb');
+let history=[],busy=false,attached=null;
+
+/* ---------- helpers ---------- */
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function md(t){
+  const lines=esc(t.trim()).split(/\n/);let out='',inList=false,para=[];
+  const inline=s=>s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>').replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g,'$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+  const flush=()=>{if(para.length){out+='<p>'+inline(para.join('<br>'))+'</p>';para=[]}};
+  for(const raw of lines){const l=raw.trim();
+    const b=l.match(/^(?:[-*•]|\d+[.)])\s+(.*)/);
+    if(b){flush();if(!inList){out+='<ul>';inList=true}out+='<li>'+inline(b[1])+'</li>';continue}
+    if(inList){out+='</ul>';inList=false}
+    if(!l){flush();continue}
+    const h=l.match(/^#{1,4}\s+(.*)/);
+    para.push(h?'<strong>'+h[1]+'</strong>':l);}
+  flush();if(inList)out+='</ul>';return out;
+}
+const plain=t=>t.replace(/\[([^\]]+)\]\([^)]+\)/g,'$1').replace(/https?:\/\/\S+/g,'').replace(/[*#`>_]/g,'').replace(/^\s*(?:[-•]|\d+[.)])\s+/gm,'').trim();
+function toast(m,ms){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,ms||3800)}
+const STATES={idle:['STANDBY','พร้อมรับคำสั่ง'],listening:['LISTENING','กำลังฟัง…'],wake:['WAKE WORD','รอฟังชื่อ'],thinking:['SEARCHING','ผู้ค้น 3 ตัวกำลังหาข้อมูล'],analyzing:['ANALYZING','กำลังวิเคราะห์และสรุป'],speaking:['SPEAKING','กำลังพูด']};
+function setState(s){orb.dataset.state=s==='wake'?'listening':(s==='analyzing'?'thinking':s);$('stateCode').textContent=STATES[s][0];$('stateLabel').textContent=s==='wake'?'รอฟังคำว่า “'+S.name+'”':STATES[s][1]}
+function idle(){setState(wakeOn&&rec?'wake':'idle')}
+const configured=p=>p==='custom'?!!(S.keys.custom&&S.keys.customBase):!!S.keys[p];
+function refreshChrome(){
+  $('brandName').textContent=S.name;document.title=S.name+' AI';
+  const n=S.slots.filter(s=>configured(s.provider)).length,c=configured(S.chief.provider);
+  const live=n>0||c;
+  $('keyLabel').textContent=live?('ผู้ค้นพร้อม '+n+'/3 · ผู้วิเคราะห์ '+(c?'พร้อม':'ยังไม่ตั้ง')):'โหมดตัวอย่าง · ยังไม่ใส่คีย์';
+  $('keyChip').style.color=live?(n===3&&c?'var(--ok)':'var(--amber)'):'var(--dim)';
+}
+
+/* ---------- AI calls ---------- */
+async function readJson(r){const t=await r.text();let d=null;try{d=JSON.parse(t)}catch(e){}
+  if(!r.ok){const m=d&&((d.error&&(d.error.message||d.error))||d.message)||t.slice(0,160);const e=new Error(typeof m==='string'?m:JSON.stringify(m));e.status=r.status;throw e}return d}
+async function callModel(p,model,system,user,web){
+  const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),90000);const signal=ctl.signal;
+  try{
+    if(p==='anthropic'){
+      const body={model,max_tokens:1500,system,messages:[{role:'user',content:user}]};
+      if(web)body.tools=[{type:'web_search_20250305',name:'web_search',max_uses:3}];
+      const d=await readJson(await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal,headers:{'content-type':'application/json','x-api-key':S.keys.anthropic,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify(body)}));
+      return (d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('').trim();
+    }
+    if(p==='openai'){
+      const body={model,instructions:system,input:user};if(web)body.tools=[{type:'web_search'}];
+      const d=await readJson(await fetch('https://api.openai.com/v1/responses',{method:'POST',signal,headers:{'content-type':'application/json','authorization':'Bearer '+S.keys.openai},body:JSON.stringify(body)}));
+      const out=[];(d.output||[]).forEach(it=>{if(it.type==='message')(it.content||[]).forEach(c=>{if(c.type==='output_text'&&c.text)out.push(c.text)})});
+      return (out.join('\n')||d.output_text||'').trim();
+    }
+    if(p==='gemini'){
+      const body={systemInstruction:{parts:[{text:system}]},contents:[{role:'user',parts:[{text:user}]}]};if(web)body.tools=[{google_search:{}}];
+      const d=await readJson(await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',{method:'POST',signal,headers:{'content-type':'application/json','x-goog-api-key':S.keys.gemini},body:JSON.stringify(body)}));
+      const c=d.candidates&&d.candidates[0];return ((c&&c.content&&c.content.parts)||[]).map(x=>x.text||'').join('').trim();
+    }
+    const base=S.keys.customBase.replace(/\/+$/,'');
+    const d=await readJson(await fetch(base+'/chat/completions',{method:'POST',signal,headers:{'content-type':'application/json','authorization':'Bearer '+S.keys.custom},body:JSON.stringify({model,messages:[{role:'system',content:system},{role:'user',content:user}]})}));
+    return ((d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||'').trim();
+  }finally{clearTimeout(to)}
+}
+async function callSafe(p,model,system,user,web){
+  try{return await callModel(p,model,system,user,web)}
+  catch(e){if(web&&e.status&&e.status!==401&&e.status!==403)return await callModel(p,model,system,user,false);throw e}
+}
+function friendly(e){
+  const m=(e&&e.message)||String(e);
+  if(e&&e.name==='AbortError')return 'ใช้เวลานานเกินไป ลองถามใหม่อีกครั้ง';
+  if(/failed to fetch|load failed|networkerror/i.test(m))return 'เชื่อมต่อไม่ได้ ตรวจอินเทอร์เน็ต ถ้าเปิดหน้านี้ในตัวอย่างของ Claude การเชื่อมต่อภายนอกจะถูกปิดไว้ ต้องเปิดจากลิงก์ที่โฮสต์เอง';
+  if(e.status===401||e.status===403||/api key|invalid.*key|unauthori/i.test(m))return 'คีย์ไม่ถูกต้องหรือไม่มีสิทธิ์ ตรวจคีย์ในหน้าตั้งค่า';
+  if(e.status===404||/model/i.test(m)&&/not.?found|does not exist|invalid/i.test(m))return 'ไม่พบชื่อรุ่นนี้ ลองแก้ชื่อรุ่นในหน้าตั้งค่า ('+m+')';
+  if(e.status===429)return 'เรียกใช้ถี่เกินไปหรือเครดิตหมด ('+m+')';
+  return m;
+}
+function getLoc(){return new Promise(res=>{if(!navigator.geolocation)return res(null);navigator.geolocation.getCurrentPosition(p=>res(p.coords.latitude.toFixed(3)+', '+p.coords.longitude.toFixed(3)),()=>res(null),{timeout:5000,maximumAge:600000})})}
+function context(loc){const now=new Date();let tz='';try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone}catch(e){}
+  return 'วันเวลาปัจจุบันของผู้ใช้: '+now.toLocaleString('th-TH',{dateStyle:'full',timeStyle:'short'})+(tz?' ('+tz+')':'')+(loc?'\nพิกัดโดยประมาณของผู้ใช้: '+loc:'')}
+
+/* ---------- feed ---------- */
+const ICON_SPK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
+function newTurn(q,example){
+  const a=document.createElement('article');a.className='turn';
+  a.innerHTML=(example?'<span class="tag">ตัวอย่าง</span>':'')+'<p class="q"></p><div class="team"></div><div class="answer"><div class="ans-head"><span class="ans-who"></span><span class="conf" hidden></span><button class="icon-btn spk" aria-label="อ่านออกเสียงอีกครั้ง" hidden>'+ICON_SPK+'</button></div><div class="ans-body pending">รอรายงานจากผู้ค้น…</div></div>';
+  a.querySelector('.q').textContent=q;a.querySelector('.ans-who').textContent=S.name+' · ผู้วิเคราะห์';
+  feed.appendChild(a);feed.scrollTop=feed.scrollHeight;return a;
+}
+const PILL={wait:'กำลังค้น',ok:'เสร็จ · ดูรายงาน',err:'ผิดพลาด',off:'ยังไม่ตั้งค่า'};
+function channel(a,i,slot){
+  const d=document.createElement('details');d.className='ch';
+  d.innerHTML='<summary><span class="dot"></span><span class="who">ผู้ค้น '+(i+1)+'</span><span class="model"></span><span class="pill"></span></summary><div class="report"></div>';
+  d.querySelector('.model').textContent=PROV[slot.provider]+' · '+slot.model+(slot.web?' · ค้นเว็บ':'');
+  a.querySelector('.team').appendChild(d);return d;
+}
+function setCh(d,st,text){d.dataset.st=st;d.querySelector('.pill').textContent=PILL[st];if(text!=null)d.querySelector('.report').innerHTML=md(text)}
+function setAnswer(a,text){
+  const body=a.querySelector('.ans-body');let t=text;
+  const m=t.match(/ความมั่นใจ\s*[:：]\s*(สูง|กลาง|ต่ำ)/);
+  if(m){t=t.replace(m[0],'').trim();const c=a.querySelector('.conf');c.dataset.l=m[1];c.textContent='ความมั่นใจ'+m[1];c.hidden=false}
+  body.classList.remove('pending');body.innerHTML=md(t);
+  const sb=a.querySelector('.spk');sb.hidden=false;sb.onclick=()=>speak(t);
+  feed.scrollTop=feed.scrollHeight;return t;
+}
+
+/* ---------- main flow ---------- */
+async function ask(q){
+  q=q.trim();if(!q||busy)return;busy=true;pauseWake();
+  const a=newTurn(q,false);const file=attached;clearAttach();
+  const live=S.slots.some(s=>configured(s.provider))||configured(S.chief.provider);
+  if(!live){await demo(a);busy=false;idle();resumeWake();return}
+  setState('thinking');
+  const loc=S.useLocation?await getLoc():null;const ctx=context(loc);
+  const hist=history.slice(-3).map(h=>'ผู้ใช้: '+h.q+'\n'+S.name+': '+h.a.slice(0,600)).join('\n\n');
+  const userMsg=(hist?'บทสนทนาก่อนหน้า:\n'+hist+'\n\n':'')+'คำถามล่าสุด: '+q+(file?'\n\nไฟล์แนบ "'+file.name+'":\n'+file.text:'');
+  const chs=S.slots.map((s,i)=>channel(a,i,s));
+  const rs=await Promise.all(S.slots.map(async(s,i)=>{
+    if(!configured(s.provider)){setCh(chs[i],'off','ยังไม่ได้ใส่คีย์ของ '+PROV[s.provider]+' ในหน้าตั้งค่า');return null}
+    setCh(chs[i],'wait');
+    const sys='คุณคือผู้ค้นข้อมูลหมายเลข '+(i+1)+' ในทีมของผู้ช่วยชื่อ '+S.name+' หน้าที่ของคุณคือหาข้อเท็จจริงที่ตอบคำถามล่าสุดของผู้ใช้ให้ครบและแม่นยำที่สุด'+(s.web?' ค้นเว็บเมื่อข้อมูลอาจเปลี่ยนแปลงหรือเป็นเรื่องล่าสุด':'')+' ระบุแหล่งที่มาเมื่อมี บอกตรงๆ เมื่อไม่แน่ใจ เขียนเป็นข้อๆ ภาษาไทย ไม่ต้องเกริ่นนำ\n'+ctx;
+    try{const t=await callSafe(s.provider,s.model,sys,userMsg,s.web);if(!t)throw new Error('ไม่ได้รับข้อความตอบกลับ');setCh(chs[i],'ok',t);return {i,t,model:s.model}}
+    catch(e){setCh(chs[i],'err',friendly(e));return null}
+  }));
+  const reports=rs.filter(Boolean);
+  try{
+    if(!configured(S.chief.provider)){
+      if(!reports.length)throw new Error('ไม่มีผู้ค้นตัวไหนตอบได้ และยังไม่ได้ตั้งค่าผู้วิเคราะห์');
+      const t=setAnswer(a,'ยังไม่ได้ตั้งค่าผู้วิเคราะห์ จึงแสดงรายงานของผู้ค้น '+(reports[0].i+1)+' ไปก่อน\n\n'+reports[0].t);
+      history.push({q,a:t});speak(reports[0].t);return;
+    }
+    setState('analyzing');
+    const sys='คุณคือ '+S.name+' ผู้ช่วยส่วนตัวของผู้ใช้ คุณมีผู้ค้นข้อมูลสามตัวที่ส่งรายงานมาให้ งานของคุณคือเทียบรายงานทั้งหมด ตรวจว่าข้อไหนตรงกัน ข้อไหนขัดกัน เลือกข้อมูลที่ถูกต้องและน่าเชื่อถือที่สุด แล้วตอบผู้ใช้เป็นคำตอบเดียว\n'+
+      'กติกา: ตอบภาษาไทย สุภาพ เป็นกันเอง กระชับ ประโยคแรกต้องเป็นคำตอบหลักที่อ่านออกเสียงแล้วเข้าใจได้ทันที ตามด้วยรายละเอียดเป็นข้อๆ เฉพาะเมื่อจำเป็น ถ้ารายงานขัดกันให้บอกสั้นๆ ว่าคุณเชื่อข้อไหนเพราะอะไร ใส่ลิงก์แหล่งที่มาที่สำคัญไม่เกิน 3 ลิงก์ บรรทัดสุดท้ายเขียนว่า "ความมั่นใจ: สูง" หรือ "ความมั่นใจ: กลาง" หรือ "ความมั่นใจ: ต่ำ"\n'+ctx;
+    const rep=reports.length?reports.map(r=>'--- รายงานผู้ค้น '+(r.i+1)+' ('+r.model+') ---\n'+r.t).join('\n\n'):'(ไม่มีรายงานจากผู้ค้น ให้ตอบจากความรู้ของคุณเอง และบอกผู้ใช้ว่ายังไม่ได้ตรวจกับแหล่งอื่น)';
+    const ans=await callSafe(S.chief.provider,S.chief.model,sys,userMsg+'\n\n'+rep,false);
+    if(!ans)throw new Error('ผู้วิเคราะห์ไม่ได้ส่งคำตอบกลับมา');
+    const t=setAnswer(a,ans);history.push({q,a:t});speak(t);
+  }catch(e){const b=a.querySelector('.ans-body');b.classList.remove('pending');b.style.color='var(--bad)';b.textContent=friendly(e)}
+  finally{busy=false;if(!speaking){idle();resumeWake()}}
+}
+
+/* ---------- demo / example ---------- */
+const EX_Q='ดื่มกาแฟวันละกี่แก้วถึงจะไม่มากเกินไป';
+const EX_R=[
+ '- สำนักงานอาหารและยาสหรัฐ (FDA) ระบุว่าผู้ใหญ่สุขภาพดีส่วนใหญ่ได้รับคาเฟอีนไม่เกิน **400 มก./วัน** โดยไม่พบผลเสียที่ชัดเจน\n- กาแฟดำ 1 แก้ว (240 มล.) มีคาเฟอีนราว 80–100 มก.\n- ที่มา: fda.gov',
+ '- 400 มก./วัน เท่ากับกาแฟชงราว 3–4 แก้ว\n- คนตั้งครรภ์ควรไม่เกิน **200 มก./วัน**\n- เอสเปรสโซช็อตเดียวราว 60–75 มก. แต่แก้วใหญ่ตามร้านอาจมี 2–3 ช็อต',
+ '- คนที่ไวต่อคาเฟอีน มีปัญหาใจสั่น นอนไม่หลับ หรือความดันสูง ควรดื่มน้อยกว่านี้\n- ควรงดหลังบ่ายสองถ้านอนหลับยาก\n- เด็กและวัยรุ่นควรจำกัดมากกว่าผู้ใหญ่'];
+const EX_A='ผู้ใหญ่สุขภาพดีดื่มได้ประมาณวันละ 3 ถึง 4 แก้ว หรือคาเฟอีนไม่เกิน 400 มิลลิกรัมครับ\n\n- กาแฟดำ 1 แก้วมีคาเฟอีนราว 80–100 มก. แต่แก้วใหญ่ตามร้านอาจมีหลายช็อต นับเป็น 2 แก้วได้\n- ถ้าตั้งครรภ์ ควรไม่เกิน 200 มก. หรือราว 2 แก้ว\n- ถ้าใจสั่นหรือนอนไม่หลับ ให้ลดลงและงดหลังบ่ายสอง\n\nผู้ค้นทั้งสามรายงานตรงกันเรื่องตัวเลข 400 มก. จึงมั่นใจในคำตอบนี้\n\nความมั่นใจ: สูง';
+function showExample(){
+  const a=newTurn(EX_Q,true);
+  S.slots.forEach((s,i)=>setCh(channel(a,i,s),'ok',EX_R[i]));
+  setAnswer(a,EX_A);
+}
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+async function demo(a){
+  setState('thinking');
+  const chs=S.slots.map((s,i)=>channel(a,i,s));chs.forEach(c=>setCh(c,'wait'));
+  for(let i=0;i<3;i++){await wait(500+i*350);setCh(chs[i],'ok','(โหมดตัวอย่าง) ยังไม่ได้ใส่คีย์ API ผู้ค้นตัวนี้จึงยังไม่ได้ค้นจริง')}
+  setState('analyzing');await wait(700);
+  const t=setAnswer(a,'ตอนนี้ยังเป็นโหมดตัวอย่างครับ แตะปุ่มตั้งค่ามุมขวาบน แล้วใส่คีย์ API อย่างน้อยหนึ่งเจ้า ผมจะเริ่มค้นและตอบคำถามนี้ได้จริงทันที\n\n- ใส่ครบ 3 เจ้าจะได้ผู้ค้น 3 ตัวที่ต่างกันจริง\n- มีแค่เจ้าเดียวก็ใช้ได้ โดยตั้งผู้ค้นทั้ง 3 และผู้วิเคราะห์เป็นเจ้านั้น');
+  speak(t);
+}
+
+/* ---------- speech out ---------- */
+let speaking=false,voiceTh=null;
+function pickVoice(){try{const vs=speechSynthesis.getVoices();voiceTh=vs.find(v=>/^th/i.test(v.lang)&&/premium|enhanced/i.test(v.name))||vs.find(v=>/^th/i.test(v.lang))||null}catch(e){}}
+if('speechSynthesis' in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}
+function speak(t){
+  if(!S.voice||!('speechSynthesis' in window))return;
+  let say=plain(t).split(/\n\s*\n/)[0];if(say.length>380)say=say.slice(0,380);
+  try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(say);u.lang='th-TH';if(voiceTh)u.voice=voiceTh;u.rate=+S.rate||1;
+    u.onstart=()=>{speaking=true;pauseWake();setState('speaking')};
+    u.onend=u.onerror=()=>{speaking=false;idle();resumeWake()};
+    speechSynthesis.speak(u)}catch(e){}
+}
+let unlocked=false;
+document.addEventListener('pointerdown',()=>{if(unlocked||!('speechSynthesis' in window))return;unlocked=true;try{const u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u)}catch(e){}},{once:true});
+
+/* ---------- speech in ---------- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null,recMode=null,wakeOn=false;
+function recErr(e){
+  if(e.error==='not-allowed'||e.error==='service-not-allowed'||e.error==='audio-capture'){
+    setWake(false);toast('ใช้ไมโครโฟนไม่ได้ อนุญาตไมค์ให้ Safari (การตั้งค่า > Safari > ไมโครโฟน) และเปิดแอพจากลิงก์ที่โฮสต์เอง',6000)}
+}
+function listenOnce(){
+  if(!SR){toast('เบราว์เซอร์นี้ฟังเสียงไม่ได้ ลองเปิดใน Safari');return}
+  if(recMode==='once'){try{rec.stop()}catch(e){}return}
+  pauseWake();if(speaking)try{speechSynthesis.cancel()}catch(e){}
+  let heard='';
+  try{rec=new SR();rec.lang='th-TH';rec.interimResults=true;rec.continuous=false;recMode='once';
+    rec.onresult=e=>{let t='';for(const r of e.results)t+=r[0].transcript;heard=t;input.value=t};
+    rec.onerror=recErr;
+    rec.onend=()=>{rec=null;recMode=null;$('micBtn').classList.remove('on');if(heard.trim()){input.value='';ask(heard)}else{idle();resumeWake()}};
+    rec.start();$('micBtn').classList.add('on');setState('listening');
+  }catch(e){toast('เริ่มฟังไม่ได้: '+e.message)}
+}
+function namePattern(){return new RegExp('^.*?'+S.name.replace(/\s+/g,'').split('').map(c=>c.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('\\s*'),'i')}
+function startWake(){
+  if(!SR||rec||!wakeOn||busy||speaking)return;
+  try{rec=new SR();rec.lang='th-TH';rec.continuous=true;rec.interimResults=false;recMode='wake';
+    rec.onresult=e=>{const r=e.results[e.results.length-1];if(!r.isFinal)return;const h=r[0].transcript;
+      const re=namePattern();if(!re.test(h))return;const rest=h.replace(re,'').replace(/^[\s,ๆ]+/,'').trim();
+      recMode='handoff';try{rec.abort()}catch(_){}
+      setTimeout(()=>{if(rest.length>1)ask(rest);else listenOnce()},250)};
+    rec.onerror=recErr;
+    rec.onend=()=>{const m=recMode;rec=null;recMode=null;if(m==='wake'&&wakeOn&&!busy&&!speaking)setTimeout(startWake,300)};
+    rec.start();setState('wake');
+  }catch(e){rec=null}
+}
+function pauseWake(){if(rec&&recMode==='wake'){recMode='paused';try{rec.abort()}catch(e){}}}
+function resumeWake(){if(wakeOn&&!rec&&!busy&&!speaking)setTimeout(startWake,200)}
+function setWake(on){
+  if(on&&!SR){toast('เบราว์เซอร์นี้ฟังเสียงไม่ได้ ลองเปิดใน Safari');on=false}
+  wakeOn=on;$('wakeBtn').setAttribute('aria-pressed',on);$('wakeLabel').textContent='ฟังชื่อ: '+(on?'เปิด':'ปิด');
+  if(on){startWake();toast('เรียก “'+S.name+'” แล้วตามด้วยคำถามได้เลย ต้องเปิดหน้าแอพค้างไว้บนจอ')}else{pauseWake();idle()}
+}
+
+/* ---------- composer & attach ---------- */
+$('composer').addEventListener('submit',e=>{e.preventDefault();const t=input.value;input.value='';autosize();ask(t)});
+input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('composer').requestSubmit()}});
+function autosize(){input.style.height='auto';input.style.height=Math.min(input.scrollHeight,120)+'px'}
+input.addEventListener('input',autosize);
+$('micBtn').addEventListener('click',listenOnce);
+$('wakeBtn').addEventListener('click',()=>setWake(!wakeOn));
+$('fileIn').addEventListener('change',async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{let t=await f.text();if(t.length>20000)t=t.slice(0,20000)+'\n…(ตัดส่วนที่เหลือ)';attached={name:f.name,text:t};$('attachName').textContent=f.name;$('attachRow').hidden=false}catch(err){toast('อ่านไฟล์นี้ไม่ได้')}});
+function clearAttach(){attached=null;$('attachRow').hidden=true}
+$('attachClear').addEventListener('click',clearAttach);
+
+/* ---------- settings ---------- */
+function slotHTML(id,title,s,withWeb){
+  return '<div class="slot"><h3>'+title+'</h3><div class="row2"><label class="f">ผู้ให้บริการ<select id="'+id+'_p">'+Object.keys(PROV).map(k=>'<option value="'+k+'"'+(k===s.provider?' selected':'')+'>'+PROV[k]+'</option>').join('')+'</select></label><label class="f">รุ่น<input id="'+id+'_m" autocomplete="off" list="dl_'+s.provider+'" value="'+esc(s.model)+'"></label></div>'+(withWeb?'<label class="check"><input type="checkbox" id="'+id+'_w"'+(s.web?' checked':'')+'> ให้ค้นเว็บได้</label>':'')+'</div>';
+}
+const MODEL_DEF={anthropic:'claude-haiku-5-5',openai:'gpt-5-mini',gemini:'gemini-2.5-flash',custom:'meta-llama/llama-3.3-70b-instruct'};
+function fillSettings(){
+  $('s_name').value=S.name;$('s_voice').checked=S.voice;$('s_rate').value=S.rate;$('s_loc').checked=S.useLocation;
+  ['anthropic','openai','gemini','custom','customBase'].forEach(k=>$('k_'+k).value=S.keys[k]||'');
+  const box=$('slotsBox');box.querySelectorAll('.slot').forEach(n=>n.remove());
+  let h='';S.slots.forEach((s,i)=>h+=slotHTML('sl'+i,'ผู้ค้น '+(i+1),s,true));h+=slotHTML('ch','ผู้วิเคราะห์ (ตัวหลัก)',S.chief,false);
+  box.insertAdjacentHTML('beforeend',h);
+  ['sl0','sl1','sl2','ch'].forEach(id=>$(id+'_p').addEventListener('change',e=>{const p=e.target.value;$(id+'_m').setAttribute('list','dl_'+p);$(id+'_m').value=id==='ch'&&p==='anthropic'?'claude-sonnet-5-5':MODEL_DEF[p]}));
+}
+function openSheet(){fillSettings();$('scrim').hidden=false;$('sheet').hidden=false}
+function closeSheet(){$('scrim').hidden=true;$('sheet').hidden=true}
+$('openSettings').addEventListener('click',openSheet);
+$('closeSettings').addEventListener('click',closeSheet);
+$('scrim').addEventListener('click',closeSheet);
+$('saveSettings').addEventListener('click',()=>{
+  S.name=$('s_name').value.trim()||'น้องฟ้า';S.voice=$('s_voice').checked;S.rate=$('s_rate').value;S.useLocation=$('s_loc').checked;
+  ['anthropic','openai','gemini','custom','customBase'].forEach(k=>S.keys[k]=$('k_'+k).value.trim());
+  S.slots=[0,1,2].map(i=>({provider:$('sl'+i+'_p').value,model:$('sl'+i+'_m').value.trim()||MODEL_DEF[$('sl'+i+'_p').value],web:$('sl'+i+'_w').checked}));
+  S.chief={provider:$('ch_p').value,model:$('ch_m').value.trim()||MODEL_DEF[$('ch_p').value]};
+  persist();refreshChrome();closeSheet();idle();toast('บันทึกแล้ว');
+});
+$('clearHist').addEventListener('click',()=>{history=[];feed.innerHTML='';closeSheet();toast('ล้างบทสนทนาแล้ว')});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('sheet').hidden)closeSheet()});
+
+refreshChrome();idle();showExample();
+})();
+</script>
+
+</body>
+</html>
